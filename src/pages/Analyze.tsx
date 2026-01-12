@@ -1,63 +1,88 @@
 import React, { useState } from 'react';
-import { Scan, Download, RefreshCw } from 'lucide-react';
+import { Scan, Download, RefreshCw, Users, Activity, AlertTriangle } from 'lucide-react';
 import UploadZone from '@/components/UploadZone';
 import DetectionCanvas from '@/components/DetectionCanvas';
 import StatCard from '@/components/StatCard';
 import DensityBadge from '@/components/DensityBadge';
 import { Button } from '@/components/ui/button';
-import { CrowdAnalysis } from '@/types/crowd';
-import { generateMockDetections, getDensityLevel } from '@/lib/mockData';
+import { CrowdAnalysis, DensityLevel, DetectedPerson } from '@/types/crowd';
+import { useAIDetection } from '@/hooks/useAIDetection';
+import { useAnalyses } from '@/hooks/useAnalyses';
+import { useAlerts } from '@/hooks/useAlerts';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Activity, AlertTriangle } from 'lucide-react';
 
 const Analyze: React.FC = () => {
-  const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CrowdAnalysis | null>(null);
+  const { analyzeImage, isProcessing, error } = useAIDetection();
+  const { saveAnalysis } = useAnalyses();
+  const { checkAndCreateAlert } = useAlerts();
   const { toast } = useToast();
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
-        title: 'Video Processing',
-        description: 'Video analysis coming soon. Please upload an image for now.',
+        title: 'Invalid file type',
+        description: 'Please upload an image file (JPG, PNG, etc.)',
         variant: 'destructive',
       });
       return;
     }
 
-    setIsProcessing(true);
-    setAnalysis(null);
-
-    // Read the file and create a preview
+    // Read the file
     const reader = new FileReader();
     reader.onload = async (e) => {
       const imageUrl = e.target?.result as string;
       setUploadedImage(imageUrl);
+      setAnalysis(null);
 
-      // Simulate AI processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Call AI detection
+      const result = await analyzeImage(imageUrl);
+      
+      if (result) {
+        const analysisResult: CrowdAnalysis = {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          peopleCount: result.peopleCount,
+          densityLevel: result.densityLevel,
+          detectedPersons: result.detectedPersons,
+          imageUrl,
+        };
 
-      // Generate mock detection results
-      const peopleCount = Math.floor(Math.random() * 40) + 5;
-      const detections = generateMockDetections(peopleCount);
+        setAnalysis(analysisResult);
 
-      const result: CrowdAnalysis = {
-        id: crypto.randomUUID(),
-        timestamp: new Date(),
-        peopleCount,
-        densityLevel: getDensityLevel(peopleCount),
-        detectedPersons: detections,
-        imageUrl,
-      };
+        // Save to database
+        const { data: savedAnalysis, error: saveError } = await saveAnalysis({
+          camera_id: null,
+          people_count: result.peopleCount,
+          density_level: result.densityLevel,
+          detected_persons: result.detectedPersons,
+          image_url: imageUrl.length < 10000 ? imageUrl : null, // Don't store large base64
+          processed_image_url: null,
+          confidence_avg: result.confidenceAvg,
+        });
 
-      setAnalysis(result);
-      setIsProcessing(false);
+        if (!saveError && savedAnalysis) {
+          // Check for alerts
+          await checkAndCreateAlert(
+            result.peopleCount,
+            result.densityLevel,
+            undefined,
+            savedAnalysis.id
+          );
+        }
 
-      toast({
-        title: 'Analysis Complete',
-        description: `Detected ${peopleCount} people in the image.`,
-      });
+        toast({
+          title: 'Analysis Complete',
+          description: `Detected ${result.peopleCount} people (${result.processingTime}ms)`,
+        });
+      } else if (error) {
+        toast({
+          title: 'Analysis Failed',
+          description: error,
+          variant: 'destructive',
+        });
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -104,7 +129,7 @@ const Analyze: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Upload & Analyze</h1>
           <p className="text-muted-foreground mt-1">
-            Upload images or videos for AI-powered crowd analysis
+            Upload images for AI-powered crowd detection using Gemini Vision
           </p>
         </div>
         {analysis && (
@@ -133,9 +158,9 @@ const Analyze: React.FC = () => {
                   <Scan className="h-6 w-6 text-primary animate-pulse" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold">Processing Image</h3>
+                  <h3 className="font-semibold">Analyzing Image</h3>
                   <p className="text-sm text-muted-foreground">
-                    Running AI detection model...
+                    Running AI detection with Gemini Vision...
                   </p>
                 </div>
               </div>
@@ -165,7 +190,7 @@ const Analyze: React.FC = () => {
                   title="Avg Confidence"
                   value={`${Math.round(
                     (analysis.detectedPersons.reduce((a, p) => a + p.confidence, 0) /
-                      analysis.detectedPersons.length) *
+                      Math.max(analysis.detectedPersons.length, 1)) *
                       100
                   )}%`}
                   icon={Activity}

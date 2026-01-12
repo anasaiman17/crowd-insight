@@ -14,16 +14,264 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      alert_thresholds: {
+        Row: {
+          camera_id: string | null
+          created_at: string
+          density_trigger: Database["public"]["Enums"]["density_level"]
+          id: string
+          is_enabled: boolean | null
+          notify_email: boolean | null
+          notify_in_app: boolean | null
+          threshold_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          camera_id?: string | null
+          created_at?: string
+          density_trigger?: Database["public"]["Enums"]["density_level"]
+          id?: string
+          is_enabled?: boolean | null
+          notify_email?: boolean | null
+          notify_in_app?: boolean | null
+          threshold_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          camera_id?: string | null
+          created_at?: string
+          density_trigger?: Database["public"]["Enums"]["density_level"]
+          id?: string
+          is_enabled?: boolean | null
+          notify_email?: boolean | null
+          notify_in_app?: boolean | null
+          threshold_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_thresholds_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alerts: {
+        Row: {
+          analysis_id: string | null
+          camera_id: string | null
+          created_at: string
+          density_level: Database["public"]["Enums"]["density_level"]
+          id: string
+          is_read: boolean | null
+          message: string
+          people_count: number
+          threshold_id: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_id?: string | null
+          camera_id?: string | null
+          created_at?: string
+          density_level: Database["public"]["Enums"]["density_level"]
+          id?: string
+          is_read?: boolean | null
+          message: string
+          people_count: number
+          threshold_id?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_id?: string | null
+          camera_id?: string | null
+          created_at?: string
+          density_level?: Database["public"]["Enums"]["density_level"]
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          people_count?: number
+          threshold_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "crowd_analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_threshold_id_fkey"
+            columns: ["threshold_id"]
+            isOneToOne: false
+            referencedRelation: "alert_thresholds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cameras: {
+        Row: {
+          created_at: string
+          grid_position: number | null
+          id: string
+          is_active: boolean | null
+          location: string | null
+          name: string
+          stream_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          grid_position?: number | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          name: string
+          stream_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          grid_position?: number | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          name?: string
+          stream_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      crowd_analyses: {
+        Row: {
+          camera_id: string | null
+          confidence_avg: number | null
+          created_at: string
+          density_level: Database["public"]["Enums"]["density_level"]
+          detected_persons: Json | null
+          id: string
+          image_url: string | null
+          people_count: number
+          processed_image_url: string | null
+          user_id: string
+        }
+        Insert: {
+          camera_id?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          density_level?: Database["public"]["Enums"]["density_level"]
+          detected_persons?: Json | null
+          id?: string
+          image_url?: string | null
+          people_count?: number
+          processed_image_url?: string | null
+          user_id: string
+        }
+        Update: {
+          camera_id?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          density_level?: Database["public"]["Enums"]["density_level"]
+          detected_persons?: Json | null
+          id?: string
+          image_url?: string | null
+          people_count?: number
+          processed_image_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crowd_analyses_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      density_level: "low" | "medium" | "high"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +398,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      density_level: ["low", "medium", "high"],
+    },
   },
 } as const
