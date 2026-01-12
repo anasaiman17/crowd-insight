@@ -1,24 +1,20 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import AuthGuard from './AuthGuard';
 
 const Layout: React.FC = () => {
-  const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className="pl-64">
-        <div className="p-8">
-          <Outlet />
-        </div>
-      </main>
-    </div>
+    <AuthGuard>
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <main className="pl-64">
+          <div className="p-8">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </AuthGuard>
   );
 };
 

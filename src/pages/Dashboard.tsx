@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Users, Activity, TrendingUp, Clock, AlertTriangle } from 'lucide-react';
 import StatCard from '@/components/StatCard';
 import CrowdChart from '@/components/CrowdChart';
 import DensityBadge from '@/components/DensityBadge';
 import RecentAnalyses from '@/components/RecentAnalyses';
-import { useAuth } from '@/contexts/AuthContext';
-import {
-  mockDashboardStats,
-  mockRecentAnalyses,
-  generateHourlyData,
-  generateDailyData,
-} from '@/lib/mockData';
+import { useAuth } from '@/hooks/useAuth';
+import { useAnalyses } from '@/hooks/useAnalyses';
 import { format } from 'date-fns';
+import { CrowdAnalysis, DensityLevel } from '@/types/crowd';
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
-  const [hourlyData] = useState(generateHourlyData());
-  const [dailyData] = useState(generateDailyData());
-  const stats = mockDashboardStats;
+  const { profile } = useAuth();
+  const { analyses, stats, getHourlyData, loading } = useAnalyses();
+  const hourlyData = getHourlyData();
+
+  // Get current stats
+  const latestAnalysis = analyses[0];
+  const currentCount = latestAnalysis?.people_count || 0;
+  const currentDensity: DensityLevel = (latestAnalysis?.density_level as DensityLevel) || 'low';
 
   const getVariant = () => {
-    switch (stats.currentDensity) {
+    switch (currentDensity) {
       case 'low':
         return 'success';
       case 'medium':
@@ -32,6 +32,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Convert analyses to the format expected by RecentAnalyses
+  const recentAnalyses: CrowdAnalysis[] = analyses.slice(0, 5).map(a => ({
+    id: a.id,
+    timestamp: new Date(a.created_at),
+    peopleCount: a.people_count,
+    densityLevel: a.density_level as DensityLevel,
+    detectedPersons: a.detected_persons || [],
+    imageUrl: a.image_url || undefined,
+  }));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
@@ -39,13 +57,13 @@ const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Welcome back, {user?.name}
+            Welcome back, {profile?.full_name || profile?.email?.split('@')[0] || 'User'}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
-            Last updated: {format(stats.lastUpdated, 'HH:mm:ss')}
+            Last updated: {format(new Date(), 'HH:mm:ss')}
           </div>
           <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
           <span className="text-sm font-medium text-success">Live</span>
@@ -56,28 +74,28 @@ const Dashboard: React.FC = () => {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Current Count"
-          value={stats.currentCount}
+          value={currentCount}
           subtitle="People detected now"
           icon={Users}
           variant={getVariant()}
         />
         <StatCard
           title="Average Count"
-          value={stats.averageCount}
-          subtitle="Today's average"
+          value={stats.avgPeopleCount}
+          subtitle="Session average"
           icon={Activity}
           variant="default"
         />
         <StatCard
           title="Peak Count"
           value={stats.peakCount}
-          subtitle="Highest today"
+          subtitle="Highest recorded"
           icon={TrendingUp}
           variant="warning"
         />
         <StatCard
           title="Total Analyses"
-          value={stats.totalAnalyses}
+          value={stats.totalCount}
           subtitle="All time"
           icon={AlertTriangle}
           variant="default"
@@ -95,10 +113,10 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-4xl font-bold">{stats.currentCount}</p>
+              <p className="text-4xl font-bold">{currentCount}</p>
               <p className="text-sm text-muted-foreground">people</p>
             </div>
-            <DensityBadge level={stats.currentDensity} className="text-lg px-6 py-2" />
+            <DensityBadge level={currentDensity} className="text-lg px-6 py-2" />
           </div>
         </div>
 
@@ -117,7 +135,7 @@ const Dashboard: React.FC = () => {
           <div
             className="relative -mt-3"
             style={{
-              marginLeft: `${Math.min((stats.currentCount / 50) * 100, 100)}%`,
+              marginLeft: `${Math.min((currentCount / 50) * 100, 100)}%`,
               transform: 'translateX(-50%)',
             }}
           >
@@ -133,13 +151,20 @@ const Dashboard: React.FC = () => {
           <CrowdChart data={hourlyData} type="area" />
         </div>
         <div className="glass-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Weekly Overview</h3>
-          <CrowdChart data={dailyData} type="bar" />
+          <h3 className="text-lg font-semibold mb-4">Detection History</h3>
+          <CrowdChart 
+            data={analyses.slice(0, 12).reverse().map(a => ({
+              hour: format(new Date(a.created_at), 'HH:mm'),
+              count: a.people_count,
+              density: a.density_level as DensityLevel,
+            }))} 
+            type="bar" 
+          />
         </div>
       </div>
 
       {/* Recent Analyses */}
-      <RecentAnalyses analyses={mockRecentAnalyses} />
+      <RecentAnalyses analyses={recentAnalyses} />
     </div>
   );
 };
