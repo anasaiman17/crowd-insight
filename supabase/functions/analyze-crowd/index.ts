@@ -35,29 +35,40 @@ serve(async (req) => {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
+          {
+            role: 'system',
+            content: `You are an expert crowd analysis AI. Your task is to accurately count ALL people visible in images and provide precise bounding box coordinates. Be thorough and count every person you can see, including:
+- People in the foreground AND background
+- Partially visible people (at edges or behind objects)
+- People at any distance from the camera
+- People of any size in the image
+
+Always respond with valid JSON only, no markdown or explanation.`
+          },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analyze this image for crowd detection. Count the number of people visible in the image. For each person detected, estimate their bounding box position as percentages (0-100) of the image dimensions. Return ONLY a valid JSON object with no additional text, in this exact format:
+                text: `Carefully analyze this image and count EVERY person visible. Look thoroughly at all areas of the image.
+
+Instructions:
+1. Count ALL people visible, even if partially obscured or far away
+2. For each person, provide bounding box as percentages (0-100) of image dimensions
+3. x,y = top-left corner position; width,height = box size
+4. Confidence should reflect how clearly you can see the person (0.5-1.0)
+
+Return ONLY this JSON structure:
 {
-  "peopleCount": <number>,
+  "peopleCount": <total_number_of_people>,
   "detectedPersons": [
-    {
-      "id": "<unique_id>",
-      "x": <x_position_percentage>,
-      "y": <y_position_percentage>,
-      "width": <width_percentage>,
-      "height": <height_percentage>,
-      "confidence": <0.0_to_1.0>
-    }
+    {"id": "p1", "x": <0-100>, "y": <0-100>, "width": <1-50>, "height": <1-60>, "confidence": <0.5-1.0>}
   ]
 }
 
-Be accurate but conservative - only count clearly visible people. If no people are visible, return peopleCount: 0 and empty detectedPersons array.`
+IMPORTANT: peopleCount MUST equal the length of detectedPersons array. Count everyone!`
               },
               {
                 type: 'image_url',
