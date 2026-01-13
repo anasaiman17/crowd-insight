@@ -21,10 +21,14 @@ serve(async (req) => {
       );
     }
 
-    // Use Lovable AI to analyze the image for crowd detection
+    // Use Lovable AI Gateway to analyze the image for crowd detection
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    const response = await fetch('https://api.lovable.dev/ai/generate', {
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
+    }
+    
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,13 +68,26 @@ Be accurate but conservative - only count clearly visible people. If no people a
             ]
           }
         ],
-        max_tokens: 2000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI API error:', errorText);
+      console.error('AI API error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'AI credits exhausted. Please add credits to continue.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       throw new Error(`AI API error: ${response.status}`);
     }
 
@@ -79,7 +96,7 @@ Be accurate but conservative - only count clearly visible people. If no people a
     // Parse the AI response
     let analysisResult;
     try {
-      const content = aiResult.choices?.[0]?.message?.content || aiResult.content || '';
+      const content = aiResult.choices?.[0]?.message?.content || '';
       // Extract JSON from the response (handle markdown code blocks)
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, content];
       const jsonStr = jsonMatch[1].trim();
