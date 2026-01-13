@@ -1,12 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Camera, Plus, Wifi, WifiOff, Users, Settings, Trash2, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Camera, Plus, Wifi, WifiOff, Users, Settings, Trash2, Edit2, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import DensityBadge from './DensityBadge';
 import { useCameras, Camera as CameraType } from '@/hooks/useCameras';
 import { generateMockDetections, getDensityLevel } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
+
+interface SimulatedDetection {
+  id: string;
+  confidence: number;
+}
 
 interface CameraFeed {
   cameraId: string;
@@ -14,6 +21,7 @@ interface CameraFeed {
   peopleCount: number;
   density: 'low' | 'medium' | 'high';
   fps: number;
+  detections: SimulatedDetection[];
 }
 
 const CameraGrid: React.FC = () => {
@@ -22,7 +30,16 @@ const CameraGrid: React.FC = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newCamera, setNewCamera] = useState({ name: '', location: '', stream_url: '' });
   const [editingCamera, setEditingCamera] = useState<CameraType | null>(null);
+  const [globalConfidenceThreshold, setGlobalConfidenceThreshold] = useState(0);
   const { toast } = useToast();
+
+  // Generate random detections with varying confidence
+  const generateSimulatedDetections = (count: number): SimulatedDetection[] => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: `det-${i}`,
+      confidence: 0.4 + Math.random() * 0.6, // 40% to 100%
+    }));
+  };
 
   // Simulate live feeds for connected cameras
   useEffect(() => {
@@ -32,11 +49,13 @@ const CameraGrid: React.FC = () => {
         cameras.forEach(camera => {
           if (camera.is_active && updated[camera.id]?.isConnected) {
             const count = Math.floor(Math.random() * 35) + 5;
+            const detections = generateSimulatedDetections(count);
             updated[camera.id] = {
               ...updated[camera.id],
               peopleCount: count,
               density: getDensityLevel(count),
               fps: 22 + Math.floor(Math.random() * 6),
+              detections,
             };
           }
         });
@@ -53,10 +72,11 @@ const CameraGrid: React.FC = () => {
       if (current?.isConnected) {
         return {
           ...prev,
-          [cameraId]: { ...current, isConnected: false, peopleCount: 0, density: 'low', fps: 0 },
+          [cameraId]: { ...current, isConnected: false, peopleCount: 0, density: 'low', fps: 0, detections: [] },
         };
       } else {
         const count = Math.floor(Math.random() * 35) + 5;
+        const detections = generateSimulatedDetections(count);
         return {
           ...prev,
           [cameraId]: {
@@ -65,6 +85,7 @@ const CameraGrid: React.FC = () => {
             peopleCount: count,
             density: getDensityLevel(count),
             fps: 24,
+            detections,
           },
         };
       }
@@ -122,55 +143,87 @@ const CameraGrid: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-semibold">Camera Grid</h2>
           <p className="text-sm text-muted-foreground">
             {cameras.length} camera{cameras.length !== 1 ? 's' : ''} configured
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Camera
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Camera</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium">Camera Name *</label>
-                <Input
-                  placeholder="e.g., Main Entrance"
-                  value={newCamera.name}
-                  onChange={(e) => setNewCamera(prev => ({ ...prev, name: e.target.value }))}
+        <div className="flex items-center gap-3">
+          {/* Confidence Filter Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filter: {Math.round(globalConfidenceThreshold * 100)}%
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72" align="end">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Confidence Threshold</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {Math.round(globalConfidenceThreshold * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  value={[globalConfidenceThreshold * 100]}
+                  onValueChange={([val]) => setGlobalConfidenceThreshold(val / 100)}
+                  min={0}
+                  max={100}
+                  step={5}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Hide detections below this confidence level across all camera feeds
+                </p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Location</label>
-                <Input
-                  placeholder="e.g., Building A, Floor 1"
-                  value={newCamera.location}
-                  onChange={(e) => setNewCamera(prev => ({ ...prev, location: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Stream URL (optional)</label>
-                <Input
-                  placeholder="rtsp://..."
-                  value={newCamera.stream_url}
-                  onChange={(e) => setNewCamera(prev => ({ ...prev, stream_url: e.target.value }))}
-                />
-              </div>
-              <Button onClick={handleAddCamera} className="w-full">
+            </PopoverContent>
+          </Popover>
+
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
                 Add Camera
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Camera</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="text-sm font-medium">Camera Name *</label>
+                  <Input
+                    placeholder="e.g., Main Entrance"
+                    value={newCamera.name}
+                    onChange={(e) => setNewCamera(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Location</label>
+                  <Input
+                    placeholder="e.g., Building A, Floor 1"
+                    value={newCamera.location}
+                    onChange={(e) => setNewCamera(prev => ({ ...prev, location: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Stream URL (optional)</label>
+                  <Input
+                    placeholder="rtsp://..."
+                    value={newCamera.stream_url}
+                    onChange={(e) => setNewCamera(prev => ({ ...prev, stream_url: e.target.value }))}
+                  />
+                </div>
+                <Button onClick={handleAddCamera} className="w-full">
+                  Add Camera
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Camera Grid */}
@@ -189,6 +242,11 @@ const CameraGrid: React.FC = () => {
           {cameras.map((camera) => {
             const feed = feeds[camera.id];
             const isConnected = feed?.isConnected || false;
+            
+            // Calculate filtered count based on confidence threshold
+            const filteredDetections = feed?.detections?.filter(d => d.confidence >= globalConfidenceThreshold) || [];
+            const filteredCount = filteredDetections.length;
+            const totalCount = feed?.detections?.length || 0;
 
             return (
               <div key={camera.id} className="glass-card overflow-hidden">
@@ -261,13 +319,18 @@ const CameraGrid: React.FC = () => {
                         <span className="text-xs font-medium">LIVE</span>
                       </div>
 
-                      {/* Stats overlay */}
+                      {/* Stats overlay with filtered count */}
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                         <div className="flex items-center gap-2 glass-card px-3 py-1.5">
                           <Users className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium">{feed?.peopleCount || 0}</span>
+                          <span className="text-sm font-medium">
+                            {filteredCount}
+                            {globalConfidenceThreshold > 0 && totalCount !== filteredCount && (
+                              <span className="text-muted-foreground text-xs ml-1">/{totalCount}</span>
+                            )}
+                          </span>
                         </div>
-                        <DensityBadge level={feed?.density || 'low'} />
+                        <DensityBadge level={getDensityLevel(filteredCount)} />
                       </div>
                     </>
                   ) : (
@@ -282,14 +345,18 @@ const CameraGrid: React.FC = () => {
 
                 {/* Camera Stats */}
                 {isConnected && (
-                  <div className="grid grid-cols-3 divide-x divide-border border-t border-border">
+                  <div className="grid grid-cols-4 divide-x divide-border border-t border-border">
                     <div className="p-3 text-center">
-                      <p className="text-xs text-muted-foreground">Count</p>
-                      <p className="text-lg font-semibold">{feed?.peopleCount || 0}</p>
+                      <p className="text-xs text-muted-foreground">Filtered</p>
+                      <p className="text-lg font-semibold text-primary">{filteredCount}</p>
+                    </div>
+                    <div className="p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="text-lg font-semibold">{totalCount}</p>
                     </div>
                     <div className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Density</p>
-                      <p className="text-lg font-semibold capitalize">{feed?.density || 'N/A'}</p>
+                      <p className="text-lg font-semibold capitalize">{getDensityLevel(filteredCount)}</p>
                     </div>
                     <div className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">FPS</p>
