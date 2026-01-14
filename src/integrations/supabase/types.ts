@@ -205,6 +205,54 @@ export type Database = {
           },
         ]
       }
+      gallery_items: {
+        Row: {
+          analysis_status: string | null
+          confidence_avg: number | null
+          created_at: string
+          density_level: string | null
+          detected_persons: Json | null
+          file_name: string
+          file_type: string
+          file_url: string
+          id: string
+          people_count: number | null
+          thumbnail_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_status?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          density_level?: string | null
+          detected_persons?: Json | null
+          file_name: string
+          file_type: string
+          file_url: string
+          id?: string
+          people_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_status?: string | null
+          confidence_avg?: number | null
+          created_at?: string
+          density_level?: string | null
+          detected_persons?: Json | null
+          file_name?: string
+          file_type?: string
+          file_url?: string
+          id?: string
+          people_count?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
