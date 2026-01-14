@@ -10,6 +10,7 @@ import {
   Shield,
   Camera,
   Bell,
+  Images,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ const Sidebar: React.FC = () => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: Upload, label: 'Upload & Analyze', path: '/analyze' },
     { icon: Camera, label: 'Live Cameras', path: '/live' },
+    { icon: Images, label: 'Gallery', path: '/gallery' },
     { icon: BarChart3, label: 'Analytics', path: '/analytics' },
   ];
 

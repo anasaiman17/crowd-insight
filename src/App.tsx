@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Analyze from "./pages/Analyze";
 import Analytics from "./pages/Analytics";
 import LiveFeed from "./pages/LiveFeed";
+import Gallery from "./pages/Gallery";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/analyze" element={<Analyze />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/live" element={<LiveFeed />} />
+            <Route path="/gallery" element={<Gallery />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
