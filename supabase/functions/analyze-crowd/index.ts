@@ -21,14 +21,13 @@ serve(async (req) => {
       );
     }
 
-    // Use Lovable AI Gateway to analyze the image for crowd detection
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
     
-    // Use gemini-2.5-flash for faster processing with structured output
+    // Use gemini-2.5-pro for better face detection accuracy
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -36,28 +35,39 @@ serve(async (req) => {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `You are a precision crowd counter. Analyze this image and detect EVERY person.
+                text: `You are an expert FACE DETECTION system. Count people by detecting their FACES.
 
-DETECTION RULES:
-- Count ALL humans: standing, sitting, walking, partial views, crowds, distant figures
-- Include people partially cut off at edges
-- Include people partially occluded by objects/others
-- Include small/distant people in background
+DETECTION METHOD:
+1. SCAN the entire image systematically for HUMAN FACES
+2. Look for facial features: eyes, nose, mouth, face shape
+3. Count faces that are visible even if:
+   - Partially visible (profile view, looking away)
+   - Small in the background
+   - Partially occluded by objects or other people
+   - Blurry but identifiable as faces
 
-OUTPUT FORMAT (JSON only, no markdown):
-{"peopleCount":<N>,"detectedPersons":[{"id":"p1","x":<0-100>,"y":<0-100>,"width":<2-40>,"height":<3-50>,"confidence":<0.3-1.0>}]}
+BOUNDING BOX RULES:
+- Draw box around the FACE only, not the whole body
+- x,y = top-left corner as percentage (0-100)
+- width/height = face dimensions as percentage (typically 2-15% for faces)
 
-COORDINATES: Percentages of image dimensions. x,y = top-left corner.
-CONFIDENCE: 0.3-0.6 = partial/distant, 0.6-0.8 = clear but small, 0.8-1.0 = clearly visible
+CONFIDENCE SCORING:
+- 0.9-1.0: Clear frontal face, all features visible
+- 0.7-0.9: Clear face but angled or partial profile
+- 0.5-0.7: Partially visible face, some features obscured
+- 0.3-0.5: Very small, distant, or heavily obscured face
 
-Return ONLY valid JSON. peopleCount MUST match array length.`
+OUTPUT (JSON only, no markdown):
+{"peopleCount":<N>,"detectedPersons":[{"id":"f1","x":<0-100>,"y":<0-100>,"width":<1-20>,"height":<1-25>,"confidence":<0.3-1.0>}]}
+
+CRITICAL: Count EVERY face. peopleCount MUST equal array length. Be thorough!`
               },
               {
                 type: 'image_url',
@@ -68,7 +78,7 @@ Return ONLY valid JSON. peopleCount MUST match array length.`
             ]
           }
         ],
-        temperature: 0.1, // Low temperature for consistent, accurate results
+        temperature: 0.1,
       }),
     });
 
@@ -94,11 +104,9 @@ Return ONLY valid JSON. peopleCount MUST match array length.`
 
     const aiResult = await response.json();
     
-    // Parse the AI response
     let analysisResult;
     try {
       const content = aiResult.choices?.[0]?.message?.content || '';
-      // Clean the response - remove any markdown formatting
       let jsonStr = content.trim();
       
       // Remove markdown code blocks if present
@@ -107,28 +115,25 @@ Return ONLY valid JSON. peopleCount MUST match array length.`
         jsonStr = match ? match[1].trim() : jsonStr.replace(/```(?:json)?/g, '').trim();
       }
       
-      // Parse JSON
       analysisResult = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError, 'Raw:', aiResult.choices?.[0]?.message?.content);
-      // Return fallback response
       analysisResult = {
         peopleCount: 0,
         detectedPersons: []
       };
     }
 
-    // Validate and sanitize the result
+    // Validate and sanitize - use smaller boxes for face detection
     const detectedPersons = (analysisResult.detectedPersons || []).map((person: any, index: number) => ({
-      id: person.id || `p${index + 1}`,
+      id: person.id || `f${index + 1}`,
       x: Math.max(0, Math.min(100, Number(person.x) || 0)),
       y: Math.max(0, Math.min(100, Number(person.y) || 0)),
-      width: Math.max(2, Math.min(40, Number(person.width) || 8)),
-      height: Math.max(3, Math.min(50, Number(person.height) || 15)),
+      width: Math.max(1, Math.min(20, Number(person.width) || 5)),
+      height: Math.max(1, Math.min(25, Number(person.height) || 6)),
       confidence: Math.max(0.3, Math.min(1, Number(person.confidence) || 0.7)),
     }));
 
-    // Ensure count matches array length
     const result = {
       peopleCount: detectedPersons.length,
       detectedPersons,
