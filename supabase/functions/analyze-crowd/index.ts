@@ -28,6 +28,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
     
+    // Use gemini-2.5-flash for faster processing with structured output
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -35,40 +36,28 @@ serve(async (req) => {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-2.5-flash',
         messages: [
-          {
-            role: 'system',
-            content: `You are an expert crowd analysis AI. Your task is to accurately count ALL people visible in images and provide precise bounding box coordinates. Be thorough and count every person you can see, including:
-- People in the foreground AND background
-- Partially visible people (at edges or behind objects)
-- People at any distance from the camera
-- People of any size in the image
-
-Always respond with valid JSON only, no markdown or explanation.`
-          },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Carefully analyze this image and count EVERY person visible. Look thoroughly at all areas of the image.
+                text: `You are a precision crowd counter. Analyze this image and detect EVERY person.
 
-Instructions:
-1. Count ALL people visible, even if partially obscured or far away
-2. For each person, provide bounding box as percentages (0-100) of image dimensions
-3. x,y = top-left corner position; width,height = box size
-4. Confidence should reflect how clearly you can see the person (0.5-1.0)
+DETECTION RULES:
+- Count ALL humans: standing, sitting, walking, partial views, crowds, distant figures
+- Include people partially cut off at edges
+- Include people partially occluded by objects/others
+- Include small/distant people in background
 
-Return ONLY this JSON structure:
-{
-  "peopleCount": <total_number_of_people>,
-  "detectedPersons": [
-    {"id": "p1", "x": <0-100>, "y": <0-100>, "width": <1-50>, "height": <1-60>, "confidence": <0.5-1.0>}
-  ]
-}
+OUTPUT FORMAT (JSON only, no markdown):
+{"peopleCount":<N>,"detectedPersons":[{"id":"p1","x":<0-100>,"y":<0-100>,"width":<2-40>,"height":<3-50>,"confidence":<0.3-1.0>}]}
 
-IMPORTANT: peopleCount MUST equal the length of detectedPersons array. Count everyone!`
+COORDINATES: Percentages of image dimensions. x,y = top-left corner.
+CONFIDENCE: 0.3-0.6 = partial/distant, 0.6-0.8 = clear but small, 0.8-1.0 = clearly visible
+
+Return ONLY valid JSON. peopleCount MUST match array length.`
               },
               {
                 type: 'image_url',
@@ -79,6 +68,7 @@ IMPORTANT: peopleCount MUST equal the length of detectedPersons array. Count eve
             ]
           }
         ],
+        temperature: 0.1, // Low temperature for consistent, accurate results
       }),
     });
 
@@ -108,12 +98,19 @@ IMPORTANT: peopleCount MUST equal the length of detectedPersons array. Count eve
     let analysisResult;
     try {
       const content = aiResult.choices?.[0]?.message?.content || '';
-      // Extract JSON from the response (handle markdown code blocks)
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, content];
-      const jsonStr = jsonMatch[1].trim();
+      // Clean the response - remove any markdown formatting
+      let jsonStr = content.trim();
+      
+      // Remove markdown code blocks if present
+      if (jsonStr.includes('```')) {
+        const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        jsonStr = match ? match[1].trim() : jsonStr.replace(/```(?:json)?/g, '').trim();
+      }
+      
+      // Parse JSON
       analysisResult = JSON.parse(jsonStr);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
+      console.error('Failed to parse AI response:', parseError, 'Raw:', aiResult.choices?.[0]?.message?.content);
       // Return fallback response
       analysisResult = {
         peopleCount: 0,
@@ -121,17 +118,20 @@ IMPORTANT: peopleCount MUST equal the length of detectedPersons array. Count eve
       };
     }
 
-    // Ensure proper structure
+    // Validate and sanitize the result
+    const detectedPersons = (analysisResult.detectedPersons || []).map((person: any, index: number) => ({
+      id: person.id || `p${index + 1}`,
+      x: Math.max(0, Math.min(100, Number(person.x) || 0)),
+      y: Math.max(0, Math.min(100, Number(person.y) || 0)),
+      width: Math.max(2, Math.min(40, Number(person.width) || 8)),
+      height: Math.max(3, Math.min(50, Number(person.height) || 15)),
+      confidence: Math.max(0.3, Math.min(1, Number(person.confidence) || 0.7)),
+    }));
+
+    // Ensure count matches array length
     const result = {
-      peopleCount: analysisResult.peopleCount || 0,
-      detectedPersons: (analysisResult.detectedPersons || []).map((person: any, index: number) => ({
-        id: person.id || `person-${index}`,
-        x: Math.max(0, Math.min(100, Number(person.x) || 0)),
-        y: Math.max(0, Math.min(100, Number(person.y) || 0)),
-        width: Math.max(1, Math.min(50, Number(person.width) || 5)),
-        height: Math.max(1, Math.min(50, Number(person.height) || 10)),
-        confidence: Math.max(0, Math.min(1, Number(person.confidence) || 0.8)),
-      })),
+      peopleCount: detectedPersons.length,
+      detectedPersons,
     };
 
     return new Response(
