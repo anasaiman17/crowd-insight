@@ -170,51 +170,40 @@ const DetectionCanvas: React.FC<DetectionCanvasProps> = ({
         )}
         
         {/* Bounding boxes overlay */}
-        {showBoxes && (
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-          >
+        {showBoxes && filteredDetections.length > 0 && (
+          <div className="absolute inset-0 pointer-events-none">
             {filteredDetections.map((person) => {
               const boxColor = getBoxColor(person.confidence);
               return (
-                <g key={person.id}>
-                  {/* Bounding box */}
-                  <rect
-                    x={person.x}
-                    y={person.y}
-                    width={person.width}
-                    height={person.height}
-                    fill="none"
-                    stroke={boxColor}
-                    strokeWidth="0.3"
-                    className="animate-pulse"
-                  />
-                  {/* Confidence label background */}
-                  <rect
-                    x={person.x}
-                    y={person.y - 3}
-                    width={person.width}
-                    height="3"
-                    fill={boxColor}
-                    opacity="0.9"
-                  />
-                  {/* Confidence text */}
-                  <text
-                    x={person.x + person.width / 2}
-                    y={person.y - 0.8}
-                    fontSize="2"
-                    fill="white"
-                    textAnchor="middle"
-                    fontWeight="600"
+                <div
+                  key={person.id}
+                  className="absolute animate-pulse"
+                  style={{
+                    left: `${person.x}%`,
+                    top: `${person.y}%`,
+                    width: `${person.width}%`,
+                    height: `${person.height}%`,
+                    border: `3px solid ${boxColor}`,
+                    borderRadius: '4px',
+                    boxShadow: `0 0 10px ${boxColor}, inset 0 0 10px ${boxColor}40`,
+                  }}
+                >
+                  {/* Confidence label */}
+                  <div
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-xs font-bold text-white whitespace-nowrap"
+                    style={{ backgroundColor: boxColor }}
                   >
                     {Math.round(person.confidence * 100)}%
-                  </text>
-                </g>
+                  </div>
+                  {/* Corner markers */}
+                  <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2" style={{ borderColor: boxColor }} />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2" style={{ borderColor: boxColor }} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2" style={{ borderColor: boxColor }} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2" style={{ borderColor: boxColor }} />
+                </div>
               );
             })}
-          </svg>
+          </div>
         )}
 
         {/* Scanning effect */}
