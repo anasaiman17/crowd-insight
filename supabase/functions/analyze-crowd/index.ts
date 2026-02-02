@@ -27,7 +27,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
     
-    // Use gemini-2.5-pro for better face detection accuracy
+    // Use gemini-3-flash-preview for fast face detection
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -35,7 +35,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           {
             role: 'user',
