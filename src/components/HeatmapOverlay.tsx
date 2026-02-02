@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useRef, useEffect, forwardRef } from 'react';
 import { DetectedPerson } from '@/types/crowd';
 
 interface HeatmapOverlayProps {
@@ -9,13 +9,13 @@ interface HeatmapOverlayProps {
   radius?: number;
 }
 
-const HeatmapOverlay: React.FC<HeatmapOverlayProps> = ({
+const HeatmapOverlay = forwardRef<HTMLCanvasElement, HeatmapOverlayProps>(({
   detections,
   width,
   height,
   opacity = 0.6,
   radius = 40,
-}) => {
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Generate heatmap colors
@@ -135,6 +135,8 @@ const HeatmapOverlay: React.FC<HeatmapOverlayProps> = ({
       style={{ mixBlendMode: 'screen' }}
     />
   );
-};
+});
+
+HeatmapOverlay.displayName = 'HeatmapOverlay';
 
 export default HeatmapOverlay;
