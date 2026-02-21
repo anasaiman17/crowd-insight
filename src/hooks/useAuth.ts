@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
 
 export interface UserProfile {
   id: string;
@@ -19,115 +17,74 @@ export interface UserRole {
   created_at: string;
 }
 
+const DEMO_USERS = [
+  { email: 'demo@gmail.com', password: 'demo123456', fullName: 'Demo User', role: 'user' as const },
+  { email: 'admin@gmail.com', password: 'admin123456', fullName: 'Admin User', role: 'admin' as const },
+];
+
+const AUTH_STORAGE_KEY = 'crowdvision_auth';
+
+function getStoredAuth() {
+  try {
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<'admin' | 'user'>('user');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Defer profile fetch to avoid blocking
-          setTimeout(async () => {
-            await fetchUserData(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setRole('user');
-        }
-        setLoading(false);
-      }
-    );
-
-    // Then get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserData(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const stored = getStoredAuth();
+    if (stored) {
+      setUser({ id: stored.id, email: stored.email });
+      setProfile(stored.profile);
+      setRole(stored.role);
+    }
+    setLoading(false);
   }, []);
 
-  const fetchUserData = async (userId: string) => {
-    try {
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      if (profileData) {
-        setProfile(profileData as UserProfile);
-      }
-
-      // Fetch role
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      if (roleData) {
-        setRole((roleData as UserRole).role);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
+  const signIn = async (email: string, password: string) => {
+    const found = DEMO_USERS.find(u => u.email === email && u.password === password);
+    if (!found) {
+      return { data: null, error: { message: 'Invalid email or password' } };
     }
+    const id = found.email === 'admin@gmail.com' ? 'admin-001' : 'demo-001';
+    const now = new Date().toISOString();
+    const prof: UserProfile = {
+      id: `profile-${id}`, user_id: id, email: found.email,
+      full_name: found.fullName, avatar_url: null, created_at: now, updated_at: now,
+    };
+    const authData = { id, email: found.email, profile: prof, role: found.role };
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authData));
+    setUser({ id, email: found.email });
+    setProfile(prof);
+    setRole(found.role);
+    return { data: authData, error: null };
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-    return { data, error };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    return { data: null, error: { message: 'Sign up is disabled in demo mode. Use the demo credentials.' } };
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setRole('user');
-    }
-    return { error };
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setUser(null);
+    setProfile(null);
+    setRole('user');
+    return { error: null };
   };
 
   return {
     user,
-    session,
+    session: user ? { user } : null,
     profile,
     role,
     loading,
-    isAuthenticated: !!session,
+    isAuthenticated: !!user,
     isAdmin: role === 'admin',
     signUp,
     signIn,

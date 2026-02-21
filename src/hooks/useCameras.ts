@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
 export interface Camera {
@@ -14,82 +13,38 @@ export interface Camera {
   updated_at: string;
 }
 
+const INITIAL_CAMERAS: Camera[] = [
+  { id: 'cam-1', user_id: 'demo-001', name: 'Main Entrance', location: 'Building A', stream_url: null, is_active: true, grid_position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'cam-2', user_id: 'demo-001', name: 'Lobby', location: 'Building A', stream_url: null, is_active: true, grid_position: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+];
+
 export function useCameras() {
   const { user } = useAuth();
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCameras = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('cameras')
-      .select('*')
-      .order('grid_position', { ascending: true });
-    
-    if (!error && data) {
-      setCameras(data as Camera[]);
-    }
-    setLoading(false);
-  };
-
   useEffect(() => {
-    if (user) {
-      fetchCameras();
-    }
+    if (user) setCameras(INITIAL_CAMERAS);
+    setLoading(false);
   }, [user]);
 
   const addCamera = async (camera: Omit<Camera, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     if (!user) return { error: new Error('Not authenticated') };
-    
-    const { data, error } = await supabase
-      .from('cameras')
-      .insert({
-        ...camera,
-        user_id: user.id,
-      })
-      .select()
-      .single();
-    
-    if (!error && data) {
-      setCameras(prev => [...prev, data as Camera]);
-    }
-    return { data, error };
+    const now = new Date().toISOString();
+    const newCam: Camera = { ...camera, id: `cam-${Date.now()}`, user_id: user.id, created_at: now, updated_at: now };
+    setCameras(prev => [...prev, newCam]);
+    return { data: newCam, error: null };
   };
 
   const updateCamera = async (id: string, updates: Partial<Camera>) => {
-    const { data, error } = await supabase
-      .from('cameras')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (!error && data) {
-      setCameras(prev => prev.map(c => c.id === id ? data as Camera : c));
-    }
-    return { data, error };
+    setCameras(prev => prev.map(c => c.id === id ? { ...c, ...updates, updated_at: new Date().toISOString() } : c));
+    return { data: cameras.find(c => c.id === id) || null, error: null };
   };
 
   const deleteCamera = async (id: string) => {
-    const { error } = await supabase
-      .from('cameras')
-      .delete()
-      .eq('id', id);
-    
-    if (!error) {
-      setCameras(prev => prev.filter(c => c.id !== id));
-    }
-    return { error };
+    setCameras(prev => prev.filter(c => c.id !== id));
+    return { error: null };
   };
 
-  return {
-    cameras,
-    loading,
-    addCamera,
-    updateCamera,
-    deleteCamera,
-    refetch: fetchCameras,
-  };
+  return { cameras, loading, addCamera, updateCamera, deleteCamera, refetch: () => {} };
 }
