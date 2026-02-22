@@ -19,6 +19,15 @@ const Analyze: React.FC = () => {
   const { checkAndCreateAlert } = useAlerts();
   const { toast } = useToast();
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
@@ -29,16 +38,13 @@ const Analyze: React.FC = () => {
       return;
     }
 
-    // Read the file
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const imageUrl = e.target?.result as string;
+    try {
+      const imageUrl = await fileToBase64(file);
       setUploadedImage(imageUrl);
       setAnalysis(null);
 
-      // Call AI detection
       const result = await analyzeImage(imageUrl);
-      
+
       if (result) {
         const analysisResult: CrowdAnalysis = {
           id: crypto.randomUUID(),
@@ -51,40 +57,45 @@ const Analyze: React.FC = () => {
 
         setAnalysis(analysisResult);
 
-        // Save to database
-        const { data: savedAnalysis, error: saveError } = await saveAnalysis({
+        // Save to database (non-blocking)
+        saveAnalysis({
           camera_id: null,
           people_count: result.peopleCount,
           density_level: result.densityLevel,
           detected_persons: result.detectedPersons,
-          image_url: imageUrl.length < 10000 ? imageUrl : null, // Don't store large base64
+          image_url: imageUrl.length < 10000 ? imageUrl : null,
           processed_image_url: null,
           confidence_avg: result.confidenceAvg,
+        }).then(({ data: savedAnalysis, error: saveError }) => {
+          if (!saveError && savedAnalysis) {
+            checkAndCreateAlert(
+              result.peopleCount,
+              result.densityLevel,
+              undefined,
+              savedAnalysis.id
+            );
+          }
         });
-
-        if (!saveError && savedAnalysis) {
-          // Check for alerts
-          await checkAndCreateAlert(
-            result.peopleCount,
-            result.densityLevel,
-            undefined,
-            savedAnalysis.id
-          );
-        }
 
         toast({
           title: 'Analysis Complete',
           description: `Detected ${result.peopleCount} people (${result.processingTime}ms)`,
         });
-      } else if (error) {
+      } else {
         toast({
           title: 'Analysis Failed',
-          description: error,
+          description: 'Could not analyze the image. Please try again.',
           variant: 'destructive',
         });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('File processing error:', err);
+      toast({
+        title: 'Processing Error',
+        description: 'Failed to process the uploaded file.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleReset = () => {
