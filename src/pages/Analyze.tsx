@@ -84,7 +84,7 @@ const Analyze: React.FC = () => {
       } else {
         toast({
           title: 'Analysis Failed',
-          description: 'Could not analyze the image. Please try again.',
+          description: error || 'Could not analyze the image. Please try again.',
           variant: 'destructive',
         });
       }
